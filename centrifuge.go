@@ -117,9 +117,8 @@ type ErrorHandler func(Centrifuge, error)
 // corresponding event happens with connection to Centrifuge.
 type EventHandler struct {
 	OnDisconnect DisconnectHandler
-	// OnPrivateSub PrivateSubHandler
-	OnRefresh RefreshHandler
-	OnError   ErrorHandler
+	OnRefresh    RefreshHandler
+	OnError      ErrorHandler
 }
 
 func DefaultBackoffReconnector(c Centrifuge) error {
