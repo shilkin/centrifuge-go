@@ -349,6 +349,7 @@ func (c *centrifugeImpl) Close() {
 	defer c.mutex.Unlock()
 	c.unsubscribeAll()
 	c.close()
+	c.status = CLOSED
 }
 
 // close closes Centrifuge connection only
@@ -372,7 +373,6 @@ func (c *centrifugeImpl) close() {
 
 	c.wgworkers.Wait()
 
-	c.status = CLOSED
 }
 
 // unsubscribeAll destroy all subscriptions
