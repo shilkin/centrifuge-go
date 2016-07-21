@@ -117,9 +117,9 @@ type ErrorHandler func(Centrifuge, error)
 // corresponding event happens with connection to Centrifuge.
 type EventHandler struct {
 	OnDisconnect DisconnectHandler
-	OnPrivateSub PrivateSubHandler
-	OnRefresh    RefreshHandler
-	OnError      ErrorHandler
+	// OnPrivateSub PrivateSubHandler
+	OnRefresh RefreshHandler
+	OnError   ErrorHandler
 }
 
 func DefaultBackoffReconnector(c Centrifuge) error {
@@ -195,22 +195,26 @@ type SubEventHandler struct {
 	OnJoin        JoinHandler
 	OnLeave       LeaveHandler
 	OnUnsubscribe UnsubscribeHandler
+	OnPrivateSub  PrivateSubHandler
 }
 
-// Sub respresents subscription on channel.
+// Sub represents subscription on channel.
 type Sub struct {
 	centrifuge    *centrifugeImpl
 	Channel       string
 	events        *SubEventHandler
 	lastMessageID *libcentrifugo.MessageID // unused in this version
+	privateSign   *PrivateSign
 }
 
-func (c *centrifugeImpl) newSub(channel string, events *SubEventHandler) *Sub {
-	return &Sub{
+func (c *centrifugeImpl) newSub(channel string, events *SubEventHandler) (*Sub, error) {
+	sub := &Sub{
 		centrifuge: c,
 		Channel:    channel,
 		events:     events,
 	}
+	err := sub.initPrivateSign()
+	return sub, err
 }
 
 // Publish JSON encoded data.
@@ -266,11 +270,11 @@ func (s *Sub) handleLeaveMessage(info libcentrifugo.ClientInfo) {
 }
 
 func (s *Sub) resubscribe() error {
-	privateSign, err := s.centrifuge.privateSign(s.Channel)
+	err := s.initPrivateSign()
 	if err != nil {
 		return err
 	}
-	_, err = s.centrifuge.sendSubscribe(s.Channel, s.lastMessageID, privateSign)
+	_, err = s.centrifuge.sendSubscribe(s.Channel, s.lastMessageID, s.privateSign)
 	if err != nil {
 		return err
 	}
@@ -349,7 +353,6 @@ func (c *centrifugeImpl) Close() {
 	defer c.mutex.Unlock()
 	c.unsubscribeAll()
 	c.close()
-	c.status = CLOSED
 }
 
 // close closes Centrifuge connection only
@@ -373,6 +376,7 @@ func (c *centrifugeImpl) close() {
 
 	c.wgworkers.Wait()
 
+	c.status = CLOSED
 }
 
 // unsubscribeAll destroy all subscriptions
@@ -917,21 +921,22 @@ func (c *centrifugeImpl) connectParams() *libcentrifugo.ConnectClientCommand {
 	}
 }
 
-func (c *centrifugeImpl) privateSign(channel string) (*PrivateSign, error) {
-	var ps *PrivateSign
+func (s *Sub) initPrivateSign() error {
 	var err error
-	if strings.HasPrefix(channel, c.config.PrivateChannelPrefix) {
-		if c.events != nil && c.events.OnPrivateSub != nil {
-			privateReq := newPrivateRequest(string(c.clientID), channel)
-			ps, err = c.events.OnPrivateSub(c, privateReq)
+	if strings.HasPrefix(s.Channel, s.centrifuge.config.PrivateChannelPrefix) {
+		if s.events != nil && s.events.OnPrivateSub != nil {
+			privateReq := newPrivateRequest(string(s.centrifuge.clientID), s.Channel)
+
+			s.privateSign, err = s.events.OnPrivateSub(s.centrifuge, privateReq)
+
 			if err != nil {
-				return nil, err
+				return err
 			}
 		} else {
-			return nil, errors.New("PrivateSubHandler must be set to handle private channel subscriptions")
+			return errors.New("PrivateSubHandler must be set to handle private channel subscriptions")
 		}
 	}
-	return ps, nil
+	return nil
 }
 
 // Subscribe allows to subscribe on channel.
@@ -939,16 +944,16 @@ func (c *centrifugeImpl) Subscribe(channel string, events *SubEventHandler) (*Su
 	if !c.connected() {
 		return nil, ErrClientDisconnected
 	}
-	privateSign, err := c.privateSign(channel)
+
+	sub, err := c.newSub(channel, events)
 	if err != nil {
 		return nil, err
 	}
 	c.subsMutex.Lock()
-	sub := c.newSub(channel, events)
 	c.subs[channel] = sub
 	c.subsMutex.Unlock()
 
-	_, err = c.sendSubscribe(channel, sub.lastMessageID, privateSign)
+	_, err = c.sendSubscribe(channel, sub.lastMessageID, sub.privateSign)
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
