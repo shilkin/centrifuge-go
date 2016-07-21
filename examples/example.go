@@ -41,24 +41,7 @@ func main() {
 
 	started := time.Now()
 
-	isError := false
 	events := &centrifuge.EventHandler{
-		OnPrivateSub: func(c centrifuge.Centrifuge, req *centrifuge.PrivateRequest) (*centrifuge.PrivateSign, error) {
-			// Here we allow everyone to subscribe on private channel.
-			// To reject subscription we could return any error from this func.
-			// In most real application secret key must not be kept on client side
-			// and here must be request to your backend to get channel sign.
-			info := ""
-			sign := auth.GenerateChannelSign("0", req.ClientID, req.Channel, info)
-			privateSign := &centrifuge.PrivateSign{Sign: sign, Info: info}
-			if isError {
-				// comment this scope if you don't need to test subscription fail
-				log.Printf("OnPrivateSub: subscriptoin failed with error stub")
-				return privateSign, fmt.Errorf("error stub")
-			}
-			isError = true
-			return privateSign, nil
-		},
 		OnDisconnect: centrifuge.DefaultBackoffReconnector,
 	}
 
@@ -87,10 +70,29 @@ func main() {
 		return nil
 	}
 
+	errCounter := 0
+	onPrivateSub := func(c centrifuge.Centrifuge, req *centrifuge.PrivateRequest) (*centrifuge.PrivateSign, error) {
+		// Here we allow everyone to subscribe on private channel.
+		// To reject subscription we could return any error from this func.
+		// In most real application secret key must not be kept on client side
+		// and here must be request to your backend to get channel sign.
+		info := ""
+		sign := auth.GenerateChannelSign("0", req.ClientID, req.Channel, info)
+		privateSign := &centrifuge.PrivateSign{Sign: sign, Info: info}
+		errCounter++
+		if errCounter > 1 && errCounter < 4 {
+			// comment this scope if you don't need to test subscription fail
+			log.Printf("OnPrivateSub: subscriptoin failed with error stub")
+			return privateSign, fmt.Errorf("error stub")
+		}
+		return privateSign, nil
+	}
+
 	subEvents := &centrifuge.SubEventHandler{
-		OnMessage: onMessage,
-		OnJoin:    onJoin,
-		OnLeave:   onLeave,
+		OnMessage:    onMessage,
+		OnJoin:       onJoin,
+		OnLeave:      onLeave,
+		OnPrivateSub: onPrivateSub,
 	}
 
 	sub, err := c.Subscribe("$1_0", subEvents)
