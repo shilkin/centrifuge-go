@@ -146,6 +146,7 @@ type Status int
 const (
 	DISCONNECTED = Status(iota)
 	CONNECTED
+	CLOSING
 	CLOSED
 	RECONNECTING
 )
@@ -356,6 +357,7 @@ func (c *centrifugeImpl) Close() {
 
 // close closes Centrifuge connection only
 func (c *centrifugeImpl) close() {
+	c.status = CLOSING
 	if c.conn != nil {
 		c.conn.Close()
 	}
@@ -393,7 +395,7 @@ func (c *centrifugeImpl) unsubscribeAll() {
 
 func (c *centrifugeImpl) handleDisconnect(err error) {
 	c.mutex.Lock()
-	if c.status == CLOSED || c.status == RECONNECTING {
+	if c.status == CLOSING || c.status == CLOSED || c.status == RECONNECTING {
 		c.mutex.Unlock()
 		return
 	}
@@ -538,6 +540,7 @@ func (c *centrifugeImpl) doReconnect() error {
 }
 
 func (c *centrifugeImpl) Reconnect(strategy ReconnectStrategy) error {
+
 	c.mutex.Lock()
 	reconnect := c.reconnect
 	c.mutex.Unlock()
