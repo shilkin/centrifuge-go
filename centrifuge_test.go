@@ -293,9 +293,9 @@ func TestNoPrivateSigner(t *testing.T) {
 
 func TestPrivateSubscriptionOk(t *testing.T) {
 	events := &EventHandler{
-		OnPrivateSub: func(c Centrifuge, r *PrivateRequest) (*PrivateSign, error) {
-			return &PrivateSign{Sign: "sign", Info: "info"}, nil
-		},
+	//OnPrivateSub: func(c Centrifuge, r *PrivateRequest) (*PrivateSign, error) {
+	//	return &PrivateSign{Sign: "sign", Info: "info"}, nil
+	//},
 	}
 
 	c := newTestCentrifugeImpl(url, project, testCredentials(), events, DefaultConfig, connectionMock{})
@@ -304,7 +304,13 @@ func TestPrivateSubscriptionOk(t *testing.T) {
 		t.Errorf("Should pass but error is '%s'", err)
 	}
 
-	_, err = c.Subscribe("$private", nil)
+	subEvents := &SubEventHandler{
+		OnPrivateSub: func(c Centrifuge, r *PrivateRequest) (*PrivateSign, error) {
+			return &PrivateSign{Sign: "sign", Info: "info"}, nil
+		},
+	}
+
+	_, err = c.Subscribe("$private", subEvents)
 	if err != nil {
 		t.Errorf("Should pass but error is '%s'", err)
 	}

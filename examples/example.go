@@ -72,6 +72,7 @@ func main() {
 
 	errCounter := 0
 	onPrivateSub := func(c centrifuge.Centrifuge, req *centrifuge.PrivateRequest) (*centrifuge.PrivateSign, error) {
+		log.Print("onPrivateSub")
 		// Here we allow everyone to subscribe on private channel.
 		// To reject subscription we could return any error from this func.
 		// In most real application secret key must not be kept on client side
@@ -100,7 +101,14 @@ func main() {
 		log.Fatalln("subscribe: ", err)
 	}
 
-	time.Sleep(120 * time.Second)
+	time.Sleep(30 * time.Second)
+	c.Close()
+	log.Print("---> Close()")
+	time.Sleep(60 * time.Second)
+
+	// --- //
+	return
+	// --- //
 
 	data := map[string]string{
 		"input": "test",
