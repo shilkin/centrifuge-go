@@ -394,6 +394,7 @@ func (c *centrifugeImpl) unsubscribeAll() {
 }
 
 func (c *centrifugeImpl) handleDisconnect(err error) {
+	log.Print("handleDisconnect - invoked")
 	c.mutex.Lock()
 	if c.status == CLOSING || c.status == CLOSED || c.status == RECONNECTING {
 		c.mutex.Unlock()
@@ -458,7 +459,10 @@ func (r *PeriodicReconnect) reconnect(c *centrifugeImpl) error {
 
 		reconnects += 1
 
-		err := c.doReconnect()
+		err, stop := c.doReconnect()
+		if stop {
+			break
+		}
 		if err != nil {
 			log.Println(err)
 			continue
@@ -505,7 +509,10 @@ func (r *BackoffReconnect) reconnect(c *centrifugeImpl) error {
 
 		reconnects += 1
 
-		err := c.doReconnect()
+		err, stop := c.doReconnect()
+		if stop {
+			break
+		}
 		if err != nil {
 			log.Println(err)
 			continue
@@ -517,26 +524,30 @@ func (r *BackoffReconnect) reconnect(c *centrifugeImpl) error {
 	return ErrReconnectFailed
 }
 
-func (c *centrifugeImpl) doReconnect() error {
+func (c *centrifugeImpl) doReconnect() (error, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if c.status == CLOSING || c.status == CLOSED {
+		return errors.New("client closed"), true
+	}
 
 	c.closed = make(chan struct{})
 
 	err := c.connect()
 	if err != nil {
 		close(c.closed)
-		return err
+		return err, false
 	}
 
 	err = c.resubscribe()
 	if err != nil {
 		// we need just close the connection and preserve all subscriptions
 		c.close()
-		return err
+		return err, false
 	}
 
-	return nil
+	return nil, false
 }
 
 func (c *centrifugeImpl) Reconnect(strategy ReconnectStrategy) error {
@@ -565,6 +576,7 @@ func (c *centrifugeImpl) resubscribe() error {
 
 func (c *centrifugeImpl) read() {
 	for {
+		log.Print("read")
 		message, err := c.conn.ReadMessage()
 		if err != nil {
 			c.handleDisconnect(err)
@@ -584,6 +596,7 @@ func (c *centrifugeImpl) run() {
 	defer c.wgworkers.Done()
 
 	for {
+		log.Print("run")
 		select {
 		case msg := <-c.receive:
 			err := c.handle(msg)
