@@ -292,11 +292,7 @@ func TestNoPrivateSigner(t *testing.T) {
 }
 
 func TestPrivateSubscriptionOk(t *testing.T) {
-	events := &EventHandler{
-	//OnPrivateSub: func(c Centrifuge, r *PrivateRequest) (*PrivateSign, error) {
-	//	return &PrivateSign{Sign: "sign", Info: "info"}, nil
-	//},
-	}
+	events := &EventHandler{}
 
 	c := newTestCentrifugeImpl(url, project, testCredentials(), events, DefaultConfig, connectionMock{})
 	err := c.Connect()
