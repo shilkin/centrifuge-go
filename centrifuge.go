@@ -394,7 +394,6 @@ func (c *centrifugeImpl) unsubscribeAll() {
 }
 
 func (c *centrifugeImpl) handleDisconnect(err error) {
-	log.Print("handleDisconnect - invoked")
 	c.mutex.Lock()
 	if c.status == CLOSING || c.status == CLOSED || c.status == RECONNECTING {
 		c.mutex.Unlock()
@@ -576,7 +575,6 @@ func (c *centrifugeImpl) resubscribe() error {
 
 func (c *centrifugeImpl) read() {
 	for {
-		log.Print("read")
 		message, err := c.conn.ReadMessage()
 		if err != nil {
 			c.handleDisconnect(err)
@@ -596,7 +594,6 @@ func (c *centrifugeImpl) run() {
 	defer c.wgworkers.Done()
 
 	for {
-		log.Print("run")
 		select {
 		case msg := <-c.receive:
 			err := c.handle(msg)
